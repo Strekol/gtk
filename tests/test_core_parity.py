@@ -16,7 +16,7 @@ Ce test compare symbole par symbole, sur l'AST :
 * tout le reste doit être identique, à l'octet d'AST près.
 
 Il couvre DEUX socles : le cœur « sessions distantes » et le socle de DÉTECTION
-(17 symboles + leurs constantes, cf. `SHARED_DETECTION_*`), que les listes
+(symboles + leurs constantes, cf. `SHARED_DETECTION_*`), que les listes
 gardées ne regardaient pas du tout jusqu'ici.
 
 Le fichier de la TUI est cherché à côté du dépôt (`../tui/`), à l'emplacement de
@@ -82,11 +82,12 @@ SHARED_SYMBOLS = [
 # `proc_root` injectable côté webui), ce qui est exactement pourquoi le garde de
 # parité de webui les laisse de côté — mais les deux CLIENTS en portent la même
 # copie, et rien ne justifie qu'elle dérive entre eux. Aucune divergence
-# tui↔gtk n'est donc déclarée sur ce bloc : les 17 symboles sont comparés.
+# tui↔gtk n'est donc déclarée sur ce bloc : tous les symboles sont comparés.
 SHARED_DETECTION_CONSTANTS = [
     '_CLK_TCK', '_SESSIONS_DIR', 'CLAUDE_PROJECTS_DIR', '_STATUS_MAP', '_TURN_END_SUBTYPES',
     '_WORKTREE_MARKER',
-    'DEFAULT_CONTEXT_WINDOW', 'CONTEXT_200K', '_JSONL_TAIL_BYTES',
+    'DEFAULT_CONTEXT_WINDOW', 'CONTEXT_200K', '_JSONL_TAIL_BYTES', '_AGENT_HANDBACK_TOOL',
+    '_AGENT_INTERRUPTED',
 ]
 
 SHARED_DETECTION_SYMBOLS = [
@@ -96,6 +97,7 @@ SHARED_DETECTION_SYMBOLS = [
     '_find_transcript',
     'get_session_info_from_jsonl', 'get_session_registry', 'get_session_state',
     'project_label', 'resolve_config_dir', 'display_config_dir', 'scan_sessions',
+    '_agent_running', 'session_agents',
 ]
 
 # Clés de STRINGS qui alimentent le cœur partagé (santé, péremption, infobulles

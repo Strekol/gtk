@@ -179,7 +179,7 @@ untouched. A `.git` directory (ordinary checkout) or a `gitdir:` pointing at
    ellipsizes; hovering the row shows the full `cwd` and full topic in a tooltip.
 6. Walk the process tree to find the parent terminal window (ghostty, kitty,
    alacritty, gnome-terminal…).
-7. **Subagents** (`Task`-tool background agents, swarm teammates) run the
+7. **Process subagents** (swarm teammates) run the
    *versioned* binary (`comm` is the version string, not `claude`), so they are
    not sessions and are never listed as focusable rows. They are matched by their
    exact `--agent-id` / `--parent-session-id` argv tokens and grouped by parent
@@ -187,6 +187,21 @@ untouched. A `.git` directory (ordinary checkout) or a `gitdir:` pointing at
    state badge, and the row tooltip lists each (`name`, agent type, model). This
    is optional (`features.show_agents`, on by default); when off, the detection
    scan is skipped entirely (no cmdline reads for non-`claude` processes).
+
+   **In-process subagents** (the `Agent` tool — the common case) have no process
+   at all: their only trace is `<transcript>/subagents/agent-<id>.jsonl` plus its
+   `.meta.json` (description, agent type, model). An agent is **running** unless
+   its transcript ends on a terminal `stop_reason`, on a *successful*
+   `SubagentHandback` result, or on the `[Request interrupted by user` marker
+   TaskStop writes (a refused handback, or a message injected after it, means it
+   is still — or again — working). Transcripts older than the `claude`
+   process are ignored: a session resumed with `claude -r` would otherwise show
+   agents killed with its previous life as running forever. Running ones join the
+   `N agents` list, and a session with one running reads **working**: a
+   background agent ends the turn (the registry stays `busy`), but Claude resumes
+   on its own when it reports. Only a registry `waiting` (permission) still wins;
+   a `waiting` reconciled from the transcript is just an ended turn. This state flip happens even with `show_agents` off — the
+   option hides the list, not the activity.
 
 The **background daemon** (`claude daemon run …`) runs the *same* `claude` binary
 (so `comm` also matches `claude`) and only differs by its subcommand. It is not a
