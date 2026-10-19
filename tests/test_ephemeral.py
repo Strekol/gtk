@@ -93,4 +93,11 @@ def test_unreadable_cmdline_is_still_listed(watcher, fake_proc):
     assert _pids(watcher) == {40: False}
 
 
-# 004-AC5 (parité gtk/tui de `scan_proc`) : couvert par test_core_parity.py.
+def test_scan_proc_is_under_parity_guard():
+    """004-AC5 : `scan_proc` reste sous le garde de parité gtk/tui — le filtre ne
+    peut pas dériver d'un client à l'autre sans faire rougir test_core_parity.py."""
+    import ast
+    tree = ast.parse((Path(__file__).parent / 'test_core_parity.py').read_text())
+    shared = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+                  and any(getattr(t, 'id', None) == 'SHARED_DETECTION_SYMBOLS' for t in n.targets))
+    assert 'scan_proc' in shared
