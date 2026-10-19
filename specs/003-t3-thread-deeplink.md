@@ -1,6 +1,6 @@
 # 003 — Open the exact T3 Code thread on click
 
-**Status**: in progress
+**Status**: shipped
 **Requested by**: Andy Trouvé
 **Date**: 2026-10-19
 
@@ -46,22 +46,22 @@ Mechanism (verified live on T3 Code beta, 2026-10-19):
 
 ## Acceptance criteria
 
-- [ ] **AC1** Given a local session whose env has `CHROME_DESKTOP=com.t3tools.T3Code.desktop`, when the
+- [x] **AC1** Given a local session whose env has `CHROME_DESKTOP=com.t3tools.T3Code.desktop`, when the
   user clicks it, then `t3code://threads/<environmentId>/<appThreadId>` is handed to the default
   `x-scheme-handler/t3code` via `Gio.AppInfo.launch_default_for_uri`, after the window raise.
-- [ ] **AC2** Given a non-T3 session (terminal, kitty, daemon, remote), when clicked, then no deep link
+- [x] **AC2** Given a non-T3 session (terminal, kitty, daemon, remote), when clicked, then no deep link
   is opened and behaviour is byte-identical to today.
-- [ ] **AC3** Given a T3 session whose Claude session id has no row in `statev2.sqlite` (or the DB /
+- [x] **AC3** Given a T3 session whose Claude session id has no row in `statev2.sqlite` (or the DB /
   `environment-id` is missing, unreadable, locked, or has an unexpected schema, or no handler is
   registered for `t3code:` — `GLib.Error`), when clicked, then no
   deep link is opened, no exception escapes, and the window raise still happens.
-- [ ] **AC4** The thread lookup opens the DB read-only (`mode=ro` URI) and never writes or creates
+- [x] **AC4** The thread lookup opens the DB read-only (`mode=ro` URI) and never writes or creates
   files under the T3 home.
-- [ ] **AC5** The lookup runs only on click, never in the periodic scan; the URI launch spawns the handler without
+- [x] **AC5** The lookup runs only on click, never in the periodic scan; the URI launch spawns the handler without
   waiting on it, so the GTK main loop is never blocked by T3.
-- [ ] **AC6** If several rows map to the same Claude session id, the most recently updated
+- [x] **AC6** If several rows map to the same Claude session id, the most recently updated
   (`updated_at`) thread wins.
-- [ ] **AC7** Shared detection symbols (`tests/test_core_parity.py`) stay untouched: parity test green.
+- [x] **AC7** Shared detection symbols (`tests/test_core_parity.py`) stay untouched: parity test green.
 
 ## Phases
 
