@@ -1,6 +1,6 @@
 # 004 — Hide ephemeral headless claude processes
 
-**Status**: in progress
+**Status**: shipped
 **Requested by**: Andy Trouvé
 **Date**: 2026-10-19
 **Repos**: gtk, tui, webui (one change, three PRs)
@@ -44,18 +44,18 @@ client nor in the webui feed. Everything else is listed exactly as today.
 
 ## Acceptance criteria
 
-- [ ] **AC1** Given a `claude` process (comm `claude`) whose argv contains the exact token
+- [x] **AC1** Given a `claude` process (comm `claude`) whose argv contains the exact token
   `--no-session-persistence` AND a non-interactive token (`-p`, `--print`, `--output-format[=…]`,
   `--input-format[=…]`), when the scan runs, then it yields no session row (gtk, tui, webui `/api`
   feed).
-- [ ] **AC2** Given a `claude` process without that token (interactive, `-p`, T3 session with
+- [x] **AC2** Given a `claude` process without that token (interactive, `-p`, T3 session with
   `--session-id`, daemon), or with it but interactive (`claude --no-session-persistence`: the flag
   is ignored without `--print`, the session persists a transcript), when the scan runs, then its row is unchanged.
-- [ ] **AC3** Exact-token match on the NUL-split argv: the string inside a larger argument (e.g. in
+- [x] **AC3** Exact-token match on the NUL-split argv: the string inside a larger argument (e.g. in
   `--settings {...}` or a prompt) does not hide the process.
-- [ ] **AC4** Unreadable cmdline (exit/exec race) keeps today's behaviour: the process is listed
+- [x] **AC4** Unreadable cmdline (exit/exec race) keeps today's behaviour: the process is listed
   (a session is never lost over a read failure).
-- [ ] **AC5** gtk and tui `scan_proc` stay identical code (AST parity, docstrings/comments
+- [x] **AC5** gtk and tui `scan_proc` stay identical code (AST parity, docstrings/comments
   excluded): `test_core_parity.py` green in both repos
   with the sibling present.
 
