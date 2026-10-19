@@ -702,8 +702,8 @@ def scan_proc(collect_agents: bool = True) -> tuple[list[dict], dict[str, list[d
                 elapsed = int(uptime - starttime / _CLK_TCK)
             except Exception:
                 continue
-            # cmdline seulement pour distinguer le démon ; illisible (course avec
-            # un exec/exit) → non-démon, on ne perd pas la session pour autant.
+            # cmdline distingue le démon et les runs éphémères ; illisible (course
+            # avec un exec/exit) → non-démon, listé : on ne perd pas la session.
             try:
                 argv = (entry / 'cmdline').read_bytes().decode(errors='ignore').split('\0')
             except OSError:

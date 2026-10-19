@@ -57,6 +57,8 @@ def test_non_interactive_no_session_persistence_is_hidden(watcher, fake_proc):
     fake_proc(12, ['claude', '--print', 'hi', '--no-session-persistence'])
     fake_proc(13, ['claude', '--output-format=json', '--no-session-persistence'])
     fake_proc(14, ['claude', '--input-format=stream-json', '--no-session-persistence'])
+    fake_proc(15, ['claude', '--input-format', 'stream-json', '--no-session-persistence'])
+    fake_proc(16, ['claude', '--output-format', 'json', '--no-session-persistence'])
     assert _pids(watcher) == {}
 
 
