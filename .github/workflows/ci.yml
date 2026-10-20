@@ -47,23 +47,40 @@ jobs:
       # `_tui` as a non-repository, and the fallback died on `git reset --hard
       # HEAD` there, so the parity guard compared against an empty module and
       # reported every shared symbol as missing. Same resolution as webui's.
+      #
+      # A PR from a fork pushes its twin to the same fork, never here: the twin
+      # is looked up in the PR author's fork first (assumed to keep the repo
+      # name), then here. Looking here only compared a fork PR against the
+      # pre-change TUI, so a shared-core change from a fork was red on both
+      # sides until one side was merged red.
+      #
+      # Branch and fork owner go through env, not inline `${{ }}`: a fork PR's
+      # branch name is attacker-controlled and would be spliced into the script.
       - name: Resolve the TUI revision
         id: sibling
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          FORK_OWNER: ${{ github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.owner.login || '' }}
         run: |
           set -euo pipefail
-          branch="${{ github.head_ref || github.ref_name }}"
+          repo="claude-watcher/tui"
           ref=""
-          if git ls-remote --exit-code --heads \
-               "https://github.com/claude-watcher/tui.git" "$branch" >/dev/null 2>&1; then
-            ref="$branch"
-          fi
-          echo "tui=${ref:-<default branch>}"
+          for owner in ${FORK_OWNER:+"$FORK_OWNER"} claude-watcher; do
+            if git ls-remote --exit-code --heads \
+                 "https://github.com/$owner/tui.git" "$BRANCH" >/dev/null 2>&1; then
+              repo="$owner/tui"
+              ref="$BRANCH"
+              break
+            fi
+          done
+          echo "tui=$repo@${ref:-<default branch>}"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - name: Checkout the TUI (shared core)
         uses: actions/checkout@v4
         with:
-          repository: claude-watcher/tui
+          repository: ${{ steps.sibling.outputs.repo }}
           ref: ${{ steps.sibling.outputs.ref }}
           path: _tui
 
