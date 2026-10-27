@@ -44,12 +44,14 @@ from gi.repository import Gtk, Gdk, GdkPixbuf, GLib, Gio, Pango
 import argparse
 import cairo
 import configparser
+import contextlib
 import math
 import json
 import os
 import re
 import subprocess
 import signal
+import sqlite3
 import sys
 import threading
 import time
@@ -1632,15 +1634,113 @@ def _focus_terminal_wayland(terminal_pid: int | None) -> bool:
     return False
 
 
+# Marqueur T3 Code : Electron pose CHROME_DESKTOP sur ses enfants, donc sur le
+# `claude` lancé par T3. C'est le seul signal stable côté env (le binaire de T3
+# est une AppImage au chemin variable).
+T3_DESKTOP_ID = 'com.t3tools.T3Code.desktop'
+# T3 écrit sa base en WAL en continu : on attend peu, un verrou dégrade en
+# « simple raise » plutôt que de geler le clic.
+T3_DB_TIMEOUT = 0.2
+
+
+def t3_home(env: Mapping[str, str]) -> Path | None:
+    """Racine T3 (~/.t3) d'une session lancée par T3 Code, None sinon.
+
+    Pur sur l'env : appelé au scan, il ne doit faire AUCUNE I/O.
+    T3CODE_CLI_PATH = <home>/bin/t3 ; absent/vide → défaut ~/.t3.
+    """
+    if env.get('CHROME_DESKTOP') != T3_DESKTOP_ID:
+        return None
+    cli = env.get('T3CODE_CLI_PATH')
+    return Path(cli).parent.parent if cli else Path.home() / '.t3'
+
+
+def t3_thread_id(home: Path, session_id: str) -> str | None:
+    """appThreadId T3 propriétaire de la session Claude, None si introuvable.
+
+    Base tierce non documentée (beta) : toute erreur (fichier absent, verrou,
+    schéma changé) → None. `mode=ro` : sqlite refuse alors de CRÉER le fichier
+    absent, et on n'écrit jamais dans la base d'un autre programme.
+    """
+    db = home / 'userdata' / 'statev2.sqlite'
+    # Base en WAL : sans écrivain ouvert, même un `mode=ro` CRÉE -wal/-shm sous le
+    # home T3 (AC4) — y compris -shm seul à côté d'un -wal orphelin (crash,
+    # restauration). Un T3 vivant a TOUJOURS les deux : s'il en manque un, T3 est
+    # fermé, aucun thread où basculer → on s'abstient. Pas d'`immutable=1` : il
+    # lirait une base vivante sans verrou.
+    # readonly_shm=1 : sans lui, le lecteur ÉCRIT ses marques de lecture dans le
+    # -shm de T3 ; avec, il le mappe en lecture seule.
+    if not (Path(f'{db}-wal').exists() and Path(f'{db}-shm').exists()):
+        return None
+    try:
+        with contextlib.closing(sqlite3.connect(f'{db.as_uri()}?mode=ro&readonly_shm=1', uri=True,
+                                                timeout=T3_DB_TIMEOUT)) as conn:
+            # Plusieurs lignes possibles pour une même session (reprise) : la
+            # plus récemment mise à jour est celle que T3 affiche.
+            row = conn.execute(
+                "SELECT json_extract(payload_json, '$.appThreadId')"
+                " FROM orchestration_v2_projection_provider_threads"
+                " WHERE json_extract(payload_json, '$.nativeThreadRef.nativeId') = ?"
+                " ORDER BY updated_at DESC LIMIT 1",
+                (session_id,),
+            ).fetchone()
+    except (sqlite3.Error, OSError, ValueError):
+        return None
+    return row[0] if row and isinstance(row[0], str) and row[0] else None
+
+
+def t3_deeplink(home: Path, session_id: str) -> str | None:
+    """URI t3code:// ouvrant le thread de la session, None si non résoluble."""
+    try:
+        env_id = (home / 'userdata' / 'environment-id').read_text().strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not env_id:
+        return None
+    thread_id = t3_thread_id(home, session_id)
+    if not thread_id:
+        return None
+    # safe='' : un '/' dans un id ajouterait un segment et désignerait une autre route.
+    quote = functools.partial(urllib.parse.quote, safe='')
+    return f't3code://threads/{quote(env_id)}/{quote(thread_id)}'
+
+
+def _open_t3_thread(s: dict) -> bool:
+    """Bascule T3 sur le thread de la session, en process.
+
+    launch_default_for_uri n'attend pas le handler : la boucle GTK n'est pas
+    bloquée. Toute erreur est avalée (AC3) : le raise a déjà eu lieu.
+    """
+    home, session_id = s.get('t3_home'), s.get('session_id')
+    if not home or not session_id:
+        return False
+    uri = t3_deeplink(Path(home), session_id)
+    if not uri:
+        return False
+    try:
+        return bool(Gio.AppInfo.launch_default_for_uri(uri, None))
+    except Exception:  # GLib.Error (aucun handler t3code:) en tête : jamais casser le clic
+        return False
+
+
 def focus_terminal(s: dict) -> bool:
     """Ramène au premier plan le terminal d'une session. Prend le DICT de session.
 
     Même raison que kill_session : la garde « session distante » est au point
     d'étranglement. Une session distante n'a pas de fenêtre ici — et son
     window_id/terminal_pid désigneraient une fenêtre locale sans rapport.
+    Session T3 Code : après le raise, bascule T3 sur le bon thread.
     """
     if s.get('remote'):
         return False
+    focused = _raise_session_window(s)
+    # APRÈS le raise : la fenêtre T3 est déjà devant, le deep link ne fait
+    # que changer de thread. Ignoré hors T3 (t3_home absent).
+    return _open_t3_thread(s) or focused
+
+
+def _raise_session_window(s: dict) -> bool:
+    """Raise de la fenêtre (wmctrl/kitty/xdotool), logique historique inchangée."""
     window_id       = s.get('window_id')
     terminal_pid    = s.get('terminal_pid')
     kitty_socket    = s.get('kitty_socket')
@@ -1729,6 +1829,8 @@ def scan_local_sessions() -> list[dict]:
                 'config_dir':      resolve_config_dir(get_env(pid)),
                 'last_activity':   None,
                 'agents':          [],
+                'session_id':      None,
+                't3_home':         None,
                 'daemon':          True,
             })
             continue
@@ -1785,6 +1887,9 @@ def scan_local_sessions() -> list[dict]:
             'config_dir':      config_dir,
             'last_activity':   last_activity,
             'agents':          (subagents.get(session_id, []) if session_id else []) + running_agents,
+            'session_id':      session_id,
+            # Chemin seulement (env déjà lu) : la lecture SQLite n'a lieu qu'au clic.
+            't3_home':         str(home) if (home := t3_home(env)) else None,
         })
     return sessions
 

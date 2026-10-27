@@ -240,6 +240,21 @@ elapsed-time updates.
 2. `wmctrl -l -p` → find window by terminal PID → `wmctrl -ia <window_id>`
 3. Fallback: `xdotool search --pid <terminal_pid> windowfocus`
 
+### T3 Code sessions
+
+Sessions launched by T3 Code carry `CHROME_DESKTOP=com.t3tools.T3Code.desktop`
+in their env (tagged at scan time, no extra I/O). On click, **after** the raise
+above (X11 or Wayland):
+
+1. Read-only lookup (`mode=ro&readonly_shm=1`, 200 ms busy timeout) in
+   `<t3 home>/userdata/statev2.sqlite`: Claude session id → T3 `appThreadId`.
+   Click time only, never in the periodic scan. Skipped when `statev2.sqlite-wal`
+   or `-shm` is absent (T3 not running — opening the WAL DB would create files there).
+2. `t3code://threads/<environmentId>/<threadId>` handed to
+   `Gio.AppInfo.launch_default_for_uri` (in-process, non-blocking).
+
+Any failure (no row, locked DB, unknown schema, no `t3code:` handler) → raise only.
+
 ### Wayland / GNOME
 
 Cross-application window management is restricted by Wayland's security model.
